@@ -102,20 +102,31 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   }
   
   void _setupSocketListeners() {
-    // Listen to drivers location updates
+    // Listen to drivers location updates with enhanced logging
     _driversLocationSubscription = _rideService.driversLocationStream.listen((drivers) {
+      debugPrint('🗺️ [MAP] Received drivers location update:');
+      debugPrint('🗺️ [MAP] Number of drivers: ${drivers.length}');
+      
+      for (var driver in drivers) {
+        debugPrint('🗺️ [MAP] Driver ${driver['driverId'] ?? driver['id']}: ');
+        debugPrint('   📍 Coordinates: ${driver['coordinates']}');
+        debugPrint('   🔄 Status: ${driver['status']}');
+        debugPrint('   🚗 Service Types: ${driver['serviceTypes']}');
+        debugPrint('   ⭐ Rating: ${driver['rating']}');
+      }
+      
       setState(() {
         _onlineDrivers = drivers;
         _updateDriverMarkers();
       });
-      debugPrint('Received ${drivers.length} online drivers');
+      debugPrint('🗺️ [MAP] Updated map with ${drivers.length} driver markers');
     });
     
     // Listen to connection status
     _connectionStatusSubscription = _rideService.connectionStatusStream.listen((status) {
-      debugPrint('Connection status: $status');
+      debugPrint('🔗 [MAP] Connection status: $status');
       if (status.contains('Connected') && _isDriverOnline && _driverId != null) {
-        // Rejoin driver room if reconnected
+        debugPrint('🔗 [MAP] Reconnected - rejoining driver room');
         _rejoinDriverRoom();
       }
     });
@@ -143,6 +154,8 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     _locationUpdateTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (_isDriverOnline && _driverId != null) {
         _updateCurrentLocation();
+        // Also request nearby drivers periodically to keep the map updated
+        _requestNearbyDrivers();
       }
     });
   }
@@ -179,42 +192,92 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   void _updateDriverMarkers() {
     Set<Marker> newMarkers = {};
     
-    // Add current location marker
+    debugPrint('🗺️ [MARKERS] Updating driver markers...');
+    
+    // Add current location marker (your location)
     newMarkers.add(
       Marker(
         markerId: const MarkerId('current_location'),
         position: _currentPosition,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        infoWindow: const InfoWindow(
-          title: 'Your Location',
-          snippet: 'Current position',
+        infoWindow: InfoWindow(
+          title: 'Your Location (${_driverId ?? 'Driver'})',
+          snippet: 'Status: ${_isDriverOnline ? 'Online' : 'Offline'}\nCurrent position',
         ),
       ),
     );
     
-    // Add driver markers
+    debugPrint('🗺️ [MARKERS] Added current location marker at $_currentPosition');
+    
+    // Add other driver markers
+    int validDrivers = 0;
     for (var driver in _onlineDrivers) {
-      if (driver['coordinates'] != null && driver['coordinates'] is List) {
-        List<dynamic> coords = driver['coordinates'];
-        if (coords.length >= 2) {
+      final driverId = driver['driverId'] ?? driver['id'];
+      final coordinates = driver['coordinates'];
+      
+      debugPrint('🗺️ [MARKERS] Processing driver: $driverId');
+      debugPrint('🗺️ [MARKERS] Coordinates: $coordinates');
+      
+      if (coordinates != null && coordinates is List && coordinates.length >= 2) {
+        try {
+          final lat = coordinates[1].toDouble();
+          final lng = coordinates[0].toDouble();
+          
+          // Skip if coordinates are invalid (0,0 or null)
+          if (lat == 0.0 && lng == 0.0) {
+            debugPrint('🗺️ [MARKERS] Skipping driver $driverId - invalid coordinates (0,0)');
+            continue;
+          }
+          
+          final status = driver['status'] ?? 'unknown';
+          final serviceTypes = driver['serviceTypes'];
+          final rating = driver['rating'];
+          final name = driver['name'] ?? driver['driverInfo']?['name'];
+          final vehicleType = driver['vehicleType'] ?? driver['driverInfo']?['vehicleType'];
+          
+          // Choose marker color based on status
+          double markerHue;
+          switch (status.toLowerCase()) {
+            case 'available':
+              markerHue = BitmapDescriptor.hueGreen;
+              break;
+            case 'busy':
+              markerHue = BitmapDescriptor.hueOrange;
+              break;
+            case 'offline':
+              markerHue = BitmapDescriptor.hueRed;
+              break;
+            default:
+              markerHue = BitmapDescriptor.hueYellow;
+          }
+          
           newMarkers.add(
             Marker(
-              markerId: MarkerId('driver_${driver['driverId'] ?? driver['id']}'),
-              position: LatLng(coords[1].toDouble(), coords[0].toDouble()),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                driver['status'] == 'available' 
-                    ? BitmapDescriptor.hueGreen 
-                    : BitmapDescriptor.hueOrange
-              ),
+              markerId: MarkerId('driver_$driverId'),
+              position: LatLng(lat, lng),
+              icon: BitmapDescriptor.defaultMarkerWithHue(markerHue),
               infoWindow: InfoWindow(
-                title: 'Driver ${driver['driverId'] ?? driver['id']}',
-                snippet: 'Status: ${driver['status'] ?? 'unknown'}\nService: ${driver['serviceTypes']?.join(', ') ?? 'N/A'}',
+                title: '${name ?? 'Driver'} ($driverId)',
+                snippet: 'Status: $status\n'
+                        'Service: ${serviceTypes?.join(', ') ?? 'N/A'}\n'
+                        'Vehicle: ${vehicleType ?? 'N/A'}\n'
+                        'Rating: ${rating ?? 'N/A'}⭐',
               ),
             ),
           );
+          
+          validDrivers++;
+          debugPrint('🗺️ [MARKERS] Added marker for driver $driverId at ($lat, $lng) - Status: $status');
+          
+        } catch (e) {
+          debugPrint('🗺️ [MARKERS] Error processing driver $driverId coordinates: $e');
         }
+      } else {
+        debugPrint('🗺️ [MARKERS] Skipping driver $driverId - invalid coordinates format');
       }
     }
+    
+    debugPrint('🗺️ [MARKERS] Total markers created: ${newMarkers.length} (1 current + $validDrivers drivers)');
     
     setState(() {
       _markers = newMarkers;
@@ -267,6 +330,9 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         _requestNearbyDrivers();
       });
       
+      // Also request immediately to populate the map
+      _requestNearbyDrivers();
+      
       setState(() {
         _isDriverOnline = true;
         _driverStatus = 'available';
@@ -295,15 +361,22 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   }
   
   void _requestNearbyDrivers() {
+    debugPrint('🔍 [NEARBY_DRIVERS] Requesting nearby drivers...');
+    debugPrint('🔍 [NEARBY_DRIVERS] Current position: ${_currentPosition.latitude}, ${_currentPosition.longitude}');
+    debugPrint('🔍 [NEARBY_DRIVERS] Radius: 10.0km, Service types: [car cab, bike]');
+    
     _rideService.requestNearbyDrivers(
       [_currentPosition.longitude, _currentPosition.latitude],
       radius: 10.0,
       serviceTypes: ['car cab', 'bike']
     );
+    
+    debugPrint('🔍 [NEARBY_DRIVERS] Request sent successfully');
   }
   
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
+    debugPrint('🗺️ [MAP] Map created and controller assigned');
     
     // Move camera to current position
     _mapController?.animateCamera(
@@ -314,6 +387,12 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         ),
       ),
     );
+    
+    // Request nearby drivers when map is ready
+    if (_currentPosition != null) {
+      debugPrint('🗺️ [MAP] Map ready - requesting initial nearby drivers');
+      _requestNearbyDrivers();
+    }
   }
   
   @override

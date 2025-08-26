@@ -82,18 +82,24 @@ class RideBookingService {
     socket.onConnect((_) {
       isConnected = true;
       _connectionStatusController.add('Connected to server');
-      debugPrint('Socket connected');
+      debugPrint('🔗 [SOCKET] Connected to server at $baseUrl');
+      debugPrint('🔗 [SOCKET] Connection established with auth: ${token != null ? "✅ Token Present" : "❌ No Token"}');
     });
     
     socket.onDisconnect((_) {
       isConnected = false;
       _connectionStatusController.add('Disconnected from server');
-      debugPrint('Socket disconnected');
+      debugPrint('❌ [SOCKET] Disconnected from server');
     });
     
     socket.on('authenticated', (data) {
       _connectionStatusController.add('Authenticated successfully');
-      debugPrint('Authenticated: $data');
+      debugPrint('✅ [SOCKET] Authentication successful: $data');
+    });
+    
+    socket.on('connect_error', (error) {
+      debugPrint('❌ [SOCKET] Connection error: $error');
+      _connectionStatusController.add('Connection error: $error');
     });
     
     // Driver response events
@@ -174,33 +180,63 @@ class RideBookingService {
       debugPrint('Socket error: $error');
     });
 
-    // Driver-specific events
+    // Driver-specific events with comprehensive logging
     socket.on('new_booking_request', (data) {
+      debugPrint('📋 [DRIVER] New booking request received:');
+      debugPrint('📋 [DRIVER] Request ID: ${data['requestId'] ?? 'N/A'}');
+      debugPrint('📋 [DRIVER] Pickup: ${data['pickupLocation']?['address'] ?? 'N/A'}');
+      debugPrint('📋 [DRIVER] Dropoff: ${data['dropoffLocation']?['address'] ?? 'N/A'}');
+      debugPrint('📋 [DRIVER] Fare: ${data['offeredFare'] ?? 'N/A'}');
+      debugPrint('📋 [DRIVER] Full data: $data');
       _newBookingRequestController.add(Map<String, dynamic>.from(data));
-      debugPrint('New booking request: $data');
     });
 
     socket.on('drivers_location_update', (data) {
+      debugPrint('📍 [DRIVERS] Location update received:');
       if (data is List) {
+        debugPrint('📍 [DRIVERS] Number of drivers: ${data.length}');
+        for (var driver in data) {
+          debugPrint('📍 [DRIVERS] Driver ${driver['driverId']}: ${driver['coordinates']} - Status: ${driver['status']}');
+        }
         _driversLocationController.add(List<Map<String, dynamic>>.from(data));
+      } else {
+        debugPrint('📍 [DRIVERS] Invalid data format: $data');
       }
-      debugPrint('Drivers location update: $data');
+    });
+
+    socket.on('nearby_drivers', (data) {
+      debugPrint('🔍 [NEARBY] Nearby drivers response:');
+      if (data is List) {
+        debugPrint('🔍 [NEARBY] Found ${data.length} nearby drivers');
+        for (var driver in data) {
+          debugPrint('🔍 [NEARBY] Driver ${driver['driverId']}: ${driver['coordinates']} - Distance: ${driver['distance']}km');
+        }
+        _driversLocationController.add(List<Map<String, dynamic>>.from(data));
+      } else {
+        debugPrint('🔍 [NEARBY] Invalid nearby drivers data: $data');
+      }
     });
 
     socket.on('booking_accepted_confirmation', (data) {
+      debugPrint('✅ [BOOKING] Booking accepted confirmation:');
+      debugPrint('✅ [BOOKING] Booking ID: ${data['bookingId'] ?? 'N/A'}');
+      debugPrint('✅ [BOOKING] Driver ID: ${data['driverId'] ?? 'N/A'}');
+      debugPrint('✅ [BOOKING] Full data: $data');
       _rideStatusController.add({
         'status': 'booking_accepted_confirmation',
         'data': data
       });
-      debugPrint('Booking accepted confirmation: $data');
     });
 
     socket.on('booking_rejected_confirmation', (data) {
+      debugPrint('❌ [BOOKING] Booking rejected confirmation:');
+      debugPrint('❌ [BOOKING] Booking ID: ${data['bookingId'] ?? 'N/A'}');
+      debugPrint('❌ [BOOKING] Reason: ${data['reason'] ?? 'N/A'}');
+      debugPrint('❌ [BOOKING] Full data: $data');
       _rideStatusController.add({
         'status': 'booking_rejected_confirmation',
         'data': data
       });
-      debugPrint('Booking rejected confirmation: $data');
     });
   }
   
@@ -451,11 +487,11 @@ class RideBookingService {
     }
   }
 
-  // Driver-specific socket methods
+  // Driver-specific socket methods with comprehensive logging
   void joinDriverRoom(String driverId, Map<String, dynamic> driverInfo) {
     if (isConnected) {
       final deviceId = '${driverId}_${DateTime.now().millisecondsSinceEpoch}';
-      socket.emit('join_driver_room', {
+      final requestData = {
         'driverId': driverId,
         'deviceId': deviceId,
         'driverInfo': {
@@ -463,8 +499,16 @@ class RideBookingService {
           'deviceId': deviceId,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         },
-      });
-      debugPrint('Driver joined room: $driverId with device: $deviceId');
+      };
+      
+      debugPrint('🚗 [EMIT] join_driver_room - Driver: $driverId');
+      debugPrint('🚗 [EMIT] Device ID: $deviceId');
+      debugPrint('🚗 [EMIT] Driver Info: ${driverInfo.toString()}');
+      debugPrint('🚗 [EMIT] Full request: $requestData');
+      
+      socket.emit('join_driver_room', requestData);
+    } else {
+      debugPrint('❌ [EMIT] Cannot join driver room - Socket not connected');
     }
   }
 
@@ -475,7 +519,7 @@ class RideBookingService {
   }) {
     if (isConnected) {
       final deviceId = '${driverId}_${DateTime.now().millisecondsSinceEpoch}';
-      socket.emit('update_driver_location', {
+      final locationData = {
         'driverId': driverId,
         'deviceId': deviceId,
         'coordinates': coordinates,
@@ -483,10 +527,19 @@ class RideBookingService {
         'speed': speed,
         'status': status,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'address': 'Current Location', // Add address for better tracking
+        'address': 'Current Location',
         'isAvailable': status == 'available',
-      });
-      debugPrint('Driver location updated: $driverId at $coordinates');
+      };
+      
+      debugPrint('📍 [EMIT] update_driver_location - Driver: $driverId');
+      debugPrint('📍 [EMIT] Coordinates: $coordinates');
+      debugPrint('📍 [EMIT] Status: $status, Heading: $heading, Speed: $speed');
+      debugPrint('📍 [EMIT] Device ID: $deviceId');
+      debugPrint('📍 [EMIT] Full location data: $locationData');
+      
+      socket.emit('update_driver_location', locationData);
+    } else {
+      debugPrint('❌ [EMIT] Cannot update location - Socket not connected');
     }
   }
 
@@ -496,7 +549,7 @@ class RideBookingService {
   }) {
     if (isConnected) {
       final deviceId = '${driverId}_${DateTime.now().millisecondsSinceEpoch}';
-      socket.emit('driver_status_update', {
+      final statusData = {
         'driverId': driverId,
         'deviceId': deviceId,
         'status': status, // 'available', 'busy', 'offline'
@@ -508,8 +561,18 @@ class RideBookingService {
           'coordinates': [0.0, 0.0], // Will be updated by location service
           'address': 'Current Location'
         }
-      });
-      debugPrint('Driver status updated: $status with device: $deviceId');
+      };
+      
+      debugPrint('🔄 [EMIT] driver_status_update - Driver: $driverId');
+      debugPrint('🔄 [EMIT] Status: $status (Active: ${status != 'offline'})');
+      debugPrint('🔄 [EMIT] Service Types: ${serviceTypes ?? ['car cab']}');
+      debugPrint('🔄 [EMIT] Auto Accept: $autoAccept');
+      debugPrint('🔄 [EMIT] Device ID: $deviceId');
+      debugPrint('🔄 [EMIT] Full status data: $statusData');
+      
+      socket.emit('driver_status_update', statusData);
+    } else {
+      debugPrint('❌ [EMIT] Cannot update status - Socket not connected');
     }
   }
 
@@ -583,12 +646,22 @@ class RideBookingService {
     List<String>? serviceTypes
   }) {
     if (isConnected) {
-      socket.emit('request_nearby_drivers', {
+      final requestData = {
         'coordinates': coordinates,
         'radius': radius,
         'serviceTypes': serviceTypes ?? ['car cab'],
-      });
-      debugPrint('Requesting nearby drivers');
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      
+      debugPrint('🔍 [EMIT] request_nearby_drivers');
+      debugPrint('🔍 [EMIT] Coordinates: $coordinates');
+      debugPrint('🔍 [EMIT] Radius: ${radius}km');
+      debugPrint('🔍 [EMIT] Service Types: ${serviceTypes ?? ['car cab']}');
+      debugPrint('🔍 [EMIT] Full request: $requestData');
+      
+      socket.emit('request_nearby_drivers', requestData);
+    } else {
+      debugPrint('❌ [EMIT] Cannot request nearby drivers - Socket not connected');
     }
   }
 
