@@ -57,10 +57,19 @@ class RideBookingService {
     }
     
     try {
+      // Generate unique device ID for multi-device support
+      final deviceId = '${userId}_${DateTime.now().millisecondsSinceEpoch}';
+      
       socket = IO.io(baseUrl, {
         'transports': ['websocket'],
-        'auth': {'token': token},
+        'auth': {
+          'token': token,
+          'userId': userId,
+          'deviceId': deviceId,
+          'userType': 'driver'
+        },
         'autoConnect': false,
+        'forceNew': true, // Force new connection for multi-device
       });
       
       _setupSocketListeners();
@@ -445,11 +454,17 @@ class RideBookingService {
   // Driver-specific socket methods
   void joinDriverRoom(String driverId, Map<String, dynamic> driverInfo) {
     if (isConnected) {
+      final deviceId = '${driverId}_${DateTime.now().millisecondsSinceEpoch}';
       socket.emit('join_driver_room', {
         'driverId': driverId,
-        'driverInfo': driverInfo,
+        'deviceId': deviceId,
+        'driverInfo': {
+          ...driverInfo,
+          'deviceId': deviceId,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
       });
-      debugPrint('Driver joined room: $driverId');
+      debugPrint('Driver joined room: $driverId with device: $deviceId');
     }
   }
 
@@ -459,14 +474,19 @@ class RideBookingService {
     String status = 'available'
   }) {
     if (isConnected) {
+      final deviceId = '${driverId}_${DateTime.now().millisecondsSinceEpoch}';
       socket.emit('update_driver_location', {
         'driverId': driverId,
+        'deviceId': deviceId,
         'coordinates': coordinates,
         'heading': heading,
         'speed': speed,
         'status': status,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'address': 'Current Location', // Add address for better tracking
+        'isAvailable': status == 'available',
       });
+      debugPrint('Driver location updated: $driverId at $coordinates');
     }
   }
 
@@ -475,14 +495,21 @@ class RideBookingService {
     bool autoAccept = false
   }) {
     if (isConnected) {
+      final deviceId = '${driverId}_${DateTime.now().millisecondsSinceEpoch}';
       socket.emit('driver_status_update', {
         'driverId': driverId,
+        'deviceId': deviceId,
         'status': status, // 'available', 'busy', 'offline'
         'serviceTypes': serviceTypes ?? ['car cab'],
         'autoAccept': autoAccept,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'isActive': status != 'offline',
+        'currentLocation': {
+          'coordinates': [0.0, 0.0], // Will be updated by location service
+          'address': 'Current Location'
+        }
       });
-      debugPrint('Driver status updated: $status');
+      debugPrint('Driver status updated: $status with device: $deviceId');
     }
   }
 

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
-import '../services/ride_booking_service.dart';
 import '../services/driver_auth_service.dart';
+import '../services/ride_booking_service.dart';
 import 'driver_login_screen.dart';
 
 class DriverMapScreen extends StatefulWidget {
@@ -32,6 +32,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   // Driver status
   bool _isDriverOnline = false;
   String _driverStatus = 'offline';
+  Timer? _locationUpdateTimer;
   
   // Get driver ID from auth service
   String? get _driverId => _authService.driverId;
@@ -107,12 +108,72 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         _onlineDrivers = drivers;
         _updateDriverMarkers();
       });
+      debugPrint('Received ${drivers.length} online drivers');
     });
     
     // Listen to connection status
     _connectionStatusSubscription = _rideService.connectionStatusStream.listen((status) {
       debugPrint('Connection status: $status');
+      if (status.contains('Connected') && _isDriverOnline && _driverId != null) {
+        // Rejoin driver room if reconnected
+        _rejoinDriverRoom();
+      }
     });
+  }
+  
+  void _rejoinDriverRoom() {
+    if (_driverId == null || !_isDriverOnline) return;
+    
+    final driverInfo = {
+      'name': _driverData?['name'] ?? _driverId,
+      'vehicleType': _driverData?['vehicleType'] ?? 'car',
+      'serviceTypes': _driverData?['serviceTypes'] ?? ['car cab'],
+      'rating': _driverData?['rating'] ?? 4.5,
+      'phone': _driverData?['phone'] ?? '',
+      'email': _driverData?['email'] ?? '',
+    };
+    
+    _rideService.joinDriverRoom(_driverId!, driverInfo);
+    _rideService.setDriverStatus(_driverId!, 'available');
+    _updateCurrentLocation();
+  }
+  
+  void _startLocationUpdates() {
+    _locationUpdateTimer?.cancel();
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (_isDriverOnline && _driverId != null) {
+        _updateCurrentLocation();
+      }
+    });
+  }
+  
+  void _stopLocationUpdates() {
+    _locationUpdateTimer?.cancel();
+  }
+  
+  Future<void> _updateCurrentLocation() async {
+    if (_driverId == null || !_isDriverOnline) return;
+    
+    try {
+      LocationData locationData = await location.getLocation();
+      final newPosition = LatLng(locationData.latitude!, locationData.longitude!);
+      
+      setState(() {
+        _currentPosition = newPosition;
+      });
+      
+      // Update driver location on server
+      _rideService.updateDriverLocation(
+        _driverId!,
+        [_currentPosition.longitude, _currentPosition.latitude],
+        heading: locationData.heading,
+        speed: locationData.speed,
+        status: 'available'
+      );
+      
+    } catch (e) {
+      debugPrint('Error updating location: $e');
+    }
   }
   
   void _updateDriverMarkers() {
@@ -166,6 +227,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     if (_isDriverOnline) {
       // Go offline
       _rideService.setDriverStatus(_driverId!, 'offline');
+      _stopLocationUpdates();
       setState(() {
         _isDriverOnline = false;
         _driverStatus = 'offline';
@@ -177,10 +239,14 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         'vehicleType': _driverData?['vehicleType'] ?? 'car',
         'serviceTypes': _driverData?['serviceTypes'] ?? ['car cab'],
         'rating': _driverData?['rating'] ?? 4.5,
+        'phone': _driverData?['phone'] ?? '',
+        'email': _driverData?['email'] ?? '',
       };
       
+      // First join the driver room
       _rideService.joinDriverRoom(_driverId!, driverInfo);
       
+      // Then set status to available
       _rideService.setDriverStatus(_driverId!, 'available', 
         serviceTypes: _driverData?['serviceTypes'] ?? ['car cab'],
         autoAccept: false
@@ -192,6 +258,14 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         [_currentPosition.longitude, _currentPosition.latitude],
         status: 'available'
       );
+      
+      // Start periodic location updates
+      _startLocationUpdates();
+      
+      // Request nearby drivers to see other online drivers
+      Future.delayed(const Duration(seconds: 2), () {
+        _requestNearbyDrivers();
+      });
       
       setState(() {
         _isDriverOnline = true;
@@ -243,12 +317,13 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   }
   
   @override
-  void dispose() {
-    _driversLocationSubscription?.cancel();
-    _connectionStatusSubscription?.cancel();
-    _mapController?.dispose();
-    super.dispose();
-  }
+   void dispose() {
+     _driversLocationSubscription?.cancel();
+     _connectionStatusSubscription?.cancel();
+     _locationUpdateTimer?.cancel();
+     _mapController?.dispose();
+     super.dispose();
+   }
   
   @override
   Widget build(BuildContext context) {
