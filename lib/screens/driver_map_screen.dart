@@ -558,11 +558,41 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _requestNearbyDrivers,
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.search, color: Colors.white),
-        tooltip: 'Find Nearby Drivers',
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "test_connection",
+            onPressed: () {
+              debugPrint('🧪 [TEST] Testing socket connection...');
+              debugPrint('🧪 [TEST] Socket connected: ${_rideService.isConnected}');
+              debugPrint('🧪 [TEST] Driver ID: $_driverId');
+              debugPrint('🧪 [TEST] Driver online: $_isDriverOnline');
+              debugPrint('🧪 [TEST] Current drivers count: ${_onlineDrivers.length}');
+              
+              // Test socket emission
+              _rideService.socket.emit('test_connection', {
+                'driverId': _driverId,
+                'timestamp': DateTime.now().millisecondsSinceEpoch,
+                'message': 'Testing connection from driver app'
+              });
+              
+              // Force request nearby drivers
+              _requestNearbyDrivers();
+            },
+            backgroundColor: Colors.orange,
+            child: const Icon(Icons.wifi, color: Colors.white),
+            tooltip: 'Test Connection',
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: "find_drivers",
+            onPressed: _requestNearbyDrivers,
+            backgroundColor: Colors.blue,
+            child: const Icon(Icons.search, color: Colors.white),
+            tooltip: 'Find Nearby Drivers',
+          ),
+        ],
       ),
     );
   }

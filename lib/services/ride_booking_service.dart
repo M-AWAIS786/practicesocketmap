@@ -205,15 +205,41 @@ class RideBookingService {
     });
 
     socket.on('nearby_drivers', (data) {
-      debugPrint('🔍 [NEARBY] Nearby drivers response:');
+      debugPrint('🔍 [NEARBY] Nearby drivers response received!');
+      debugPrint('🔍 [NEARBY] Raw data: $data');
+      debugPrint('🔍 [NEARBY] Data type: ${data.runtimeType}');
+      
       if (data is List) {
         debugPrint('🔍 [NEARBY] Found ${data.length} nearby drivers');
         for (var driver in data) {
           debugPrint('🔍 [NEARBY] Driver ${driver['driverId']}: ${driver['coordinates']} - Distance: ${driver['distance']}km');
         }
         _driversLocationController.add(List<Map<String, dynamic>>.from(data));
+      } else if (data is Map) {
+        debugPrint('🔍 [NEARBY] Received map data, converting to list');
+        final drivers = data['drivers'] ?? data['data'] ?? [];
+        if (drivers is List) {
+          debugPrint('🔍 [NEARBY] Found ${drivers.length} drivers in map response');
+          _driversLocationController.add(List<Map<String, dynamic>>.from(drivers));
+        } else {
+          debugPrint('🔍 [NEARBY] No drivers array found in map response');
+        }
       } else {
-        debugPrint('🔍 [NEARBY] Invalid nearby drivers data: $data');
+        debugPrint('🔍 [NEARBY] Invalid nearby drivers data type: ${data.runtimeType}');
+        debugPrint('🔍 [NEARBY] Data content: $data');
+      }
+    });
+    
+    // Add test connection listener
+    socket.on('test_connection_response', (data) {
+      debugPrint('🧪 [TEST] Received test connection response: $data');
+    });
+    
+    // Add a general listener to catch any unhandled events
+    socket.onAny((event, data) {
+      if (event.contains('driver') || event.contains('nearby') || event.contains('location')) {
+        debugPrint('🔍 [ANY_EVENT] Received event: $event');
+        debugPrint('🔍 [ANY_EVENT] Data: $data');
       }
     });
 
@@ -645,6 +671,11 @@ class RideBookingService {
     double radius = 5.0,
     List<String>? serviceTypes
   }) {
+    debugPrint('🔍 [REQUEST] Attempting to request nearby drivers...');
+    debugPrint('🔍 [REQUEST] Socket connected: $isConnected');
+    debugPrint('🔍 [REQUEST] Socket ID: ${socket.id}');
+    debugPrint('🔍 [REQUEST] Auth token present: ${token != null}');
+    
     if (isConnected) {
       final requestData = {
         'coordinates': coordinates,
@@ -660,8 +691,20 @@ class RideBookingService {
       debugPrint('🔍 [EMIT] Full request: $requestData');
       
       socket.emit('request_nearby_drivers', requestData);
+      
+      // Set a timeout to check if we get a response
+      Timer(Duration(seconds: 5), () {
+        debugPrint('🔍 [TIMEOUT] No nearby drivers response received within 5 seconds');
+        debugPrint('🔍 [TIMEOUT] This might indicate server issues or no drivers available');
+      });
+      
     } else {
       debugPrint('❌ [EMIT] Cannot request nearby drivers - Socket not connected');
+      debugPrint('❌ [EMIT] Socket state: ${socket.connected}');
+      debugPrint('❌ [EMIT] Attempting to reconnect...');
+      
+      // Try to reconnect
+      socket.connect();
     }
   }
 
