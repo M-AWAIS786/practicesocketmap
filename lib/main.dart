@@ -4,9 +4,11 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:location/location.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'services/ride_booking_service.dart';
+import 'services/driver_auth_service.dart';
 import 'widgets/fare_estimation_widget.dart';
 import 'widgets/booking_widget.dart';
 import 'screens/driver_map_screen.dart';
+import 'screens/driver_login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,12 +19,69 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Socket Map Practice',
+      title: 'Driver App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Socket Map Testing'),
+      home: const AuthWrapper(),
     );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({Key? key}) : super(key: key);
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  final DriverAuthService _authService = DriverAuthService();
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthStatus();
+  }
+
+  Future<void> _checkAuthStatus() async {
+    await _authService.initialize();
+    
+    if (_authService.isLoggedIn && _authService.token != null) {
+      // Verify token is still valid
+      final isValid = await _authService.verifyToken();
+      if (isValid) {
+        // Navigate to driver map screen
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const DriverMapScreen(),
+            ),
+          );
+          return;
+        }
+      }
+    }
+    
+    // Show login screen
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    return const DriverLoginScreen();
   }
 }
 
@@ -169,20 +228,20 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.all(16),
                 color: Colors.blue[50],
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(Icons.person, color: Colors.blue),
-                    const SizedBox(width: 8),
+                    Icon(Icons.person, color: Colors.blue),
+                    SizedBox(width: 8),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'User: ${RideBookingService.username}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          'Socket Test Mode',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          'ID: ${RideBookingService.userId}',
-                          style: const TextStyle(fontSize: 12),
+                          'For driver authentication, use Driver Map tab',
+                          style: TextStyle(fontSize: 12),
                         ),
                       ],
                     ),

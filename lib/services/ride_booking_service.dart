@@ -4,16 +4,19 @@ import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/foundation.dart';
+import 'driver_auth_service.dart';
 
 class RideBookingService {
   static const String baseUrl = 'http://159.198.74.112:3001';
   static const String apiUrl = '$baseUrl/api';
   
-  // Authentication credentials from user
-  static const String token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4YWFjMjNjOTc4NDUwYjdjZTQ5NjMyZiIsImlhdCI6MTc1NjA0OTYyNSwiZXhwIjoxNzU4NjQxNjI1fQ.IvUCEXC6Pf1KKnNqedYxnZDENIKPW0WRfH_ChSmqgpo';
-  static const String userId = '68aac23c978450b7ce49632f';
-  static const String username = 'ali1';
-  static const String sponsorId = '61e8f9b9-308441';
+  // Authentication service
+  final DriverAuthService _authService = DriverAuthService();
+  
+  // Dynamic authentication credentials
+  String? get token => _authService.token;
+  String? get userId => _authService.driverId;
+  Map<String, dynamic>? get driverData => _authService.driverData;
   
   late IO.Socket socket;
   bool isConnected = false;
@@ -37,10 +40,22 @@ class RideBookingService {
   Stream<Map<String, dynamic>> get newBookingRequestStream => _newBookingRequestController.stream;
   
   RideBookingService() {
-    _initializeSocket();
+    _initializeService();
+  }
+  
+  Future<void> _initializeService() async {
+    await _authService.initialize();
+    if (_authService.isLoggedIn && _authService.token != null) {
+      _initializeSocket();
+    }
   }
   
   void _initializeSocket() {
+    if (token == null) {
+      debugPrint('Cannot initialize socket: No authentication token available');
+      return;
+    }
+    
     try {
       socket = IO.io(baseUrl, {
         'transports': ['websocket'],
@@ -194,9 +209,20 @@ class RideBookingService {
   
   // HTTP request helper
   Map<String, String> get _headers => {
-    'Authorization': 'Bearer $token',
+    'Authorization': 'Bearer ${token ?? ''}',
     'Content-Type': 'application/json',
   };
+  
+  // Reinitialize socket with new credentials
+  Future<void> reinitializeWithAuth() async {
+    await _authService.initialize();
+    if (_authService.isLoggedIn && _authService.token != null) {
+      if (isConnected) {
+        disconnect();
+      }
+      _initializeSocket();
+    }
+  }
   
   // Test API connectivity
   Future<void> testApiConnection() async {

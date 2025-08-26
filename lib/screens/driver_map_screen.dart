@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import '../services/ride_booking_service.dart';
+import '../services/driver_auth_service.dart';
+import 'driver_login_screen.dart';
 
 class DriverMapScreen extends StatefulWidget {
   const DriverMapScreen({Key? key}) : super(key: key);
@@ -13,6 +15,7 @@ class DriverMapScreen extends StatefulWidget {
 
 class _DriverMapScreenState extends State<DriverMapScreen> {
   final RideBookingService _rideService = RideBookingService();
+  final DriverAuthService _authService = DriverAuthService();
   GoogleMapController? _mapController;
   Location location = Location();
   
@@ -29,11 +32,33 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   // Driver status
   bool _isDriverOnline = false;
   String _driverStatus = 'offline';
-  String _driverId = '68ac23f5713dc2332e5750ed';
+  
+  // Get driver ID from auth service
+  String? get _driverId => _authService.driverId;
+  Map<String, dynamic>? get _driverData => _authService.driverData;
   
   @override
   void initState() {
     super.initState();
+    _initializeDriver();
+  }
+  
+  Future<void> _initializeDriver() async {
+    await _authService.initialize();
+    
+    if (!_authService.isLoggedIn || _authService.token == null) {
+      // Redirect to login if not authenticated
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const DriverLoginScreen()),
+        );
+      }
+      return;
+    }
+    
+    // Reinitialize ride service with auth credentials
+    await _rideService.reinitializeWithAuth();
+    
     _initializeMap();
     _setupSocketListeners();
   }
@@ -136,30 +161,34 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   }
   
   void _toggleDriverStatus() {
+    if (_driverId == null) return;
+    
     if (_isDriverOnline) {
       // Go offline
-      _rideService.setDriverStatus(_driverId, 'offline');
+      _rideService.setDriverStatus(_driverId!, 'offline');
       setState(() {
         _isDriverOnline = false;
         _driverStatus = 'offline';
       });
     } else {
       // Go online
-      _rideService.joinDriverRoom(_driverId, {
-        'name': 'Driver $_driverId',
-        'vehicleType': 'car',
-        'serviceTypes': ['car cab'],
-        'rating': 4.5,
-      });
+      final driverInfo = {
+        'name': _driverData?['name'] ?? _driverId,
+        'vehicleType': _driverData?['vehicleType'] ?? 'car',
+        'serviceTypes': _driverData?['serviceTypes'] ?? ['car cab'],
+        'rating': _driverData?['rating'] ?? 4.5,
+      };
       
-      _rideService.setDriverStatus(_driverId, 'available', 
-        serviceTypes: ['car cab'],
+      _rideService.joinDriverRoom(_driverId!, driverInfo);
+      
+      _rideService.setDriverStatus(_driverId!, 'available', 
+        serviceTypes: _driverData?['serviceTypes'] ?? ['car cab'],
         autoAccept: false
       );
       
       // Update driver location
       _rideService.updateDriverLocation(
-        _driverId, 
+        _driverId!, 
         [_currentPosition.longitude, _currentPosition.latitude],
         status: 'available'
       );
@@ -168,6 +197,26 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         _isDriverOnline = true;
         _driverStatus = 'available';
       });
+    }
+  }
+  
+  Future<void> _logout() async {
+    // Go offline first
+    if (_isDriverOnline && _driverId != null) {
+      _rideService.setDriverStatus(_driverId!, 'offline');
+    }
+    
+    // Disconnect socket
+    _rideService.disconnect();
+    
+    // Logout from auth service
+    await _authService.logout();
+    
+    // Navigate to login screen
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DriverLoginScreen()),
+      );
     }
   }
   
@@ -213,6 +262,11 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _requestNearbyDrivers,
             tooltip: 'Refresh Drivers',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+            tooltip: 'Logout',
           ),
         ],
       ),
