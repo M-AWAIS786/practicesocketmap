@@ -253,6 +253,28 @@ class LocationRepository {
     }
   }
 
+  // Set driver status to online
+  Future<void> goOnline(String userId) async {
+    if (_currentUrl != null && _socketApiServices.isConnected(_currentUrl!)) {
+      _socketApiServices.goOnline(_currentUrl!, userId);
+      log('🟢 Driver went online via socket: $userId');
+    } else {
+      log('❌ Cannot go online - socket not connected');
+      throw Exception('Socket not connected');
+    }
+  }
+
+  // Set driver status to offline
+  Future<void> goOffline(String userId) async {
+    if (_currentUrl != null && _socketApiServices.isConnected(_currentUrl!)) {
+      _socketApiServices.goOffline(_currentUrl!, userId);
+      log('🔴 Driver went offline via socket: $userId');
+    } else {
+      log('❌ Cannot go offline - socket not connected');
+      throw Exception('Socket not connected');
+    }
+  }
+
   // Dispose resources
   void dispose() {
     disconnect();

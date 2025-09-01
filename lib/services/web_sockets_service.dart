@@ -173,6 +173,30 @@ class SocketApiServices {
     });
     log('📍 Live location response sent to: $requesterId');
   }
+  
+  // Set driver status to online
+  void goOnline(String url, String userId) {
+    if (!_sockets.containsKey(url)) return;
+    
+    final socket = _sockets[url]!;
+    socket.emit('go-online', {
+      'userId': userId,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    log('🟢 Driver went online: $userId');
+  }
+
+  // Set driver status to offline
+  void goOffline(String url, String userId) {
+    if (!_sockets.containsKey(url)) return;
+    
+    final socket = _sockets[url]!;
+    socket.emit('go-offline', {
+      'userId': userId,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    log('🔴 Driver went offline: $userId');
+  }
 
   void disconnect(String url) {
     if (_sockets.containsKey(url)) {

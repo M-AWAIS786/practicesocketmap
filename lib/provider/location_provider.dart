@@ -14,6 +14,7 @@ class LocationState {
   final bool isConnected;
   final String? error;
   final List<Map<String, dynamic>> nearbyUsers;
+  final bool isDriverOnline;
 
   const LocationState({
     this.currentLocation,
@@ -21,6 +22,7 @@ class LocationState {
     this.isConnected = false,
     this.error,
     this.nearbyUsers = const [],
+    this.isDriverOnline = false,
   });
 
   LocationState copyWith({
@@ -29,6 +31,7 @@ class LocationState {
     bool? isConnected,
     String? error,
     List<Map<String, dynamic>>? nearbyUsers,
+    bool? isDriverOnline,
   }) {
     return LocationState(
       currentLocation: currentLocation ?? this.currentLocation,
@@ -36,6 +39,7 @@ class LocationState {
       isConnected: isConnected ?? this.isConnected,
       error: error,
       nearbyUsers: nearbyUsers ?? this.nearbyUsers,
+      isDriverOnline: isDriverOnline ?? this.isDriverOnline,
     );
   }
 }
@@ -256,6 +260,61 @@ class LocationNotifier extends StateNotifier<AsyncValue<LocationState>> {
       final currentState = state.value ?? const LocationState();
       state = AsyncData(currentState.copyWith(
         error: 'Failed to request live location: $e',
+      ));
+    }
+  }
+
+  // Toggle driver status (on/off)
+  Future<void> goOnline() async {
+    try {
+      final authService = _ref.read(driverAuthServiceProvider);
+      final userId = authService.driverId;
+      
+      if (userId == null) {
+        throw FetchDataException('User ID not available');
+      }
+
+      await _locationRepo.goOnline(userId);
+      log('🟢 Driver went online: $userId');
+      
+      // Update state to reflect the status change
+      final currentState = state.value ?? const LocationState();
+      state = AsyncData(currentState.copyWith(
+        error: null, // Clear any previous errors
+        isDriverOnline: true,
+      ));
+    } catch (e) {
+      log('Error going online: $e');
+      final currentState = state.value ?? const LocationState();
+      state = AsyncData(currentState.copyWith(
+        error: 'Failed to go online: $e',
+      ));
+    }
+  }
+
+  Future<void> goOffline() async {
+    try {
+      final authService = _ref.read(driverAuthServiceProvider);
+      final userId = authService.driverId;
+      
+      if (userId == null) {
+        throw FetchDataException('User ID not available');
+      }
+
+      await _locationRepo.goOffline(userId);
+      log('🔴 Driver went offline: $userId');
+      
+      // Update state to reflect the status change
+      final currentState = state.value ?? const LocationState();
+      state = AsyncData(currentState.copyWith(
+        error: null, // Clear any previous errors
+        isDriverOnline: false,
+      ));
+    } catch (e) {
+      log('Error going offline: $e');
+      final currentState = state.value ?? const LocationState();
+      state = AsyncData(currentState.copyWith(
+        error: 'Failed to go offline: $e',
       ));
     }
   }

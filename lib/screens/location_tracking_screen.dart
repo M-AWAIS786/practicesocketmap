@@ -66,6 +66,98 @@ class _LocationTrackingScreenState extends ConsumerState<LocationTrackingScreen>
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Driver Status Toggle
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: locationState.when(
+                    data: (state) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Driver Status',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<bool>(
+                                title: const Text('Online'),
+                                subtitle: const Text('Available for rides'),
+                                value: true,
+                                groupValue: state.isDriverOnline,
+                                onChanged: authService.isLoggedIn ? (bool? value) {
+                                  if (value == true) {
+                                    ref.read(locationProvider.notifier).goOnline();
+                                  }
+                                } : null,
+                                activeColor: Colors.green,
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<bool>(
+                                title: const Text('Offline'),
+                                subtitle: const Text('Not available'),
+                                value: false,
+                                groupValue: state.isDriverOnline,
+                                onChanged: authService.isLoggedIn ? (bool? value) {
+                                  if (value == false) {
+                                    ref.read(locationProvider.notifier).goOffline();
+                                  }
+                                } : null,
+                                activeColor: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: state.isDriverOnline ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: state.isDriverOnline ? Colors.green : Colors.red,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'Status: ${state.isDriverOnline ? 'ONLINE' : 'OFFLINE'}',
+                            style: TextStyle(
+                              color: state.isDriverOnline ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    loading: () => const Column(
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 8),
+                        Text('Loading driver status...'),
+                      ],
+                    ),
+                    error: (error, stack) => Column(
+                      children: [
+                        const Icon(Icons.error, color: Colors.red, size: 48),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Error: $error',
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
           
               // Location Status
               Card(
@@ -201,32 +293,7 @@ class _LocationTrackingScreenState extends ConsumerState<LocationTrackingScreen>
               const SizedBox(height: 24),
               
               // Test Live Location Request Button
-              locationState.when(
-                data: (state) => state.isConnected
-                    ? ElevatedButton(
-                        onPressed: () {
-                          // Test with a sample user ID - replace with actual user ID in production
-                          ref.read(locationProvider.notifier).requestLiveLocation('test_user_id');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Live location request sent'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Test Live Location Request'),
-                      )
-                    : const SizedBox.shrink(),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
-          
-              const SizedBox(height: 16),
-          
+             
               // Clear Error Button
               locationState.when(
                 data: (state) => state.error != null
