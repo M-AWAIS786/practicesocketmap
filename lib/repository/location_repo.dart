@@ -21,6 +21,7 @@ class LocationRepository {
       
       // Connect to socket if not already connected
       await _socketApiServices.connect(url, token);
+      print('📍 Location tracking socket connected successfully!');
       
       // Start location tracking
       bool locationStarted = await _locationService.startTracking();
@@ -41,6 +42,21 @@ class LocationRepository {
       // Listen for incoming location updates from other users/drivers
       _socketApiServices.on(url, 'location_update', (data) {
         _handleIncomingLocationUpdate(data);
+      });
+      
+      // Listen for location update confirmations and errors
+      _socketApiServices.listenForLocationConfirmations(url);
+      
+      // Listen for live location events
+      _socketApiServices.listenForLiveLocationEvents(
+        url,
+        _handleLiveLocationResponse,
+        _handleLiveLocationError,
+      );
+      
+      // Listen for live location requests from server
+      _socketApiServices.on(url, 'get_live_location', (data) {
+        _handleLiveLocationRequest(data);
       });
       
       _isEmittingLocation = true;
@@ -79,11 +95,7 @@ class LocationRepository {
     
     final locationData = {
       'userId': userId ?? _currentUserId,
-      'coordinates': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'coordinates': [longitude, latitude], // Server expects [longitude, latitude] format
     };
     
     _socketApiServices.emit(_currentUrl!, 'location_update', locationData);
@@ -104,18 +116,11 @@ class LocationRepository {
     
     final locationUpdateData = {
       'userId': _currentUserId,
-      'coordinates': {
-        'latitude': locationData.latitude,
-        'longitude': locationData.longitude,
-      },
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'accuracy': locationData.accuracy,
-      'speed': locationData.speed,
-      'heading': locationData.heading,
+      'coordinates': [locationData.longitude, locationData.latitude], // Server expects [longitude, latitude] format
     };
     
     _socketApiServices.emit(_currentUrl!, 'location_update', locationUpdateData);
-    log('Auto-emitted location update: lat=${locationData.latitude}, lon=${locationData.longitude}');
+    log('Auto-emitted location update: lat=${locationData.latitude}, lon=${locationData.longitude} for user: $_currentUserId');
   }
 
   // Handle incoming location updates from other users
@@ -191,6 +196,60 @@ class LocationRepository {
       _socketApiServices.disconnect(_currentUrl!);
       _currentUrl = null;
       _currentUserId = null;
+    }
+  }
+
+  // Handle live location request from server
+  void _handleLiveLocationRequest(dynamic data) async {
+    try {
+      log('📍 Received live location request: $data');
+      
+      // Get current location
+      final currentLocation = await getCurrentLocation();
+      if (currentLocation != null && _currentUrl != null) {
+        // Respond with current location
+        _socketApiServices.respondToLiveLocationRequest(
+          _currentUrl!,
+          currentLocation.latitude!,
+          currentLocation.longitude!,
+          data['requesterId'] ?? '',
+        );
+      } else {
+        log('❌ Cannot respond to live location request - no current location or URL');
+      }
+    } catch (e) {
+      log('Error handling live location request: $e');
+    }
+  }
+  
+  // Handle live location response
+  void _handleLiveLocationResponse(dynamic data) {
+    try {
+      log('📍 Received live location response: $data');
+      // Process the live location response
+      // This can be used to update UI or notify other parts of the app
+    } catch (e) {
+      log('Error handling live location response: $e');
+    }
+  }
+  
+  // Handle live location error
+  void _handleLiveLocationError(dynamic data) {
+    try {
+      log('❌ Live location error: $data');
+      // Handle live location errors
+      // This can be used to show error messages to user
+    } catch (e) {
+      log('Error handling live location error: $e');
+    }
+  }
+  
+  // Request live location from another user
+  void requestLiveLocation(String targetUserId) {
+    if (_currentUrl != null) {
+      _socketApiServices.requestLiveLocation(_currentUrl!, targetUserId);
+    } else {
+      log('❌ Cannot request live location - socket not connected');
     }
   }
 

@@ -91,6 +91,7 @@ class LocationNotifier extends StateNotifier<AsyncValue<LocationState>> {
         isConnected: true,
       ));
       
+      print('🔗 Location tracking socket is connected and active!');
       log('Location tracking started successfully');
     } catch (e, stack) {
       log('Error starting location tracking: $e');
@@ -229,6 +230,35 @@ class LocationNotifier extends StateNotifier<AsyncValue<LocationState>> {
   
   // Check if socket is emitting location
   bool get isEmittingLocation => _locationRepo.isEmittingLocation;
+
+  // Emit current location immediately
+  Future<void> emitCurrentLocation() async {
+    try {
+      final locationData = await _locationRepo.getCurrentLocation();
+      if (locationData != null && locationData.latitude != null && locationData.longitude != null) {
+        emitLocationUpdate(locationData.latitude!, locationData.longitude!);
+        log('Current location emitted');
+      } else {
+        log('No current location available to emit');
+      }
+    } catch (e) {
+      log('Error emitting current location: $e');
+    }
+  }
+
+  // Request live location from another user
+  void requestLiveLocation(String targetUserId) {
+    try {
+      _locationRepo.requestLiveLocation(targetUserId);
+      log('Live location requested for user: $targetUserId');
+    } catch (e) {
+      log('Error requesting live location: $e');
+      final currentState = state.value ?? const LocationState();
+      state = AsyncData(currentState.copyWith(
+        error: 'Failed to request live location: $e',
+      ));
+    }
+  }
 
   // Disconnect and cleanup
   void disconnect() {

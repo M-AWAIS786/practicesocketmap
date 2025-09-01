@@ -6,7 +6,7 @@ import 'package:practicesocketmap/provider/socket_connect_provider.dart';
 import 'package:practicesocketmap/services/driver_auth_service.dart';
 
 class LocationTrackingScreen extends ConsumerStatefulWidget {
-  const LocationTrackingScreen({Key? key}) : super(key: key);
+  const LocationTrackingScreen({super.key});
 
   @override
   ConsumerState<LocationTrackingScreen> createState() => _LocationTrackingScreenState();
@@ -142,58 +142,44 @@ class _LocationTrackingScreenState extends ConsumerState<LocationTrackingScreen>
                   child: const Text('Login Required'),
                 ),
               ] else ...[
-                // Permission Check Button
+                // Single button to handle everything
                 ElevatedButton(
                   onPressed: () async {
+                    final authService = ref.read(driverAuthServiceProvider);
+                    final userId = authService.driverId ?? 'user123';
+                    
+                    // Request permission if not granted
                     final hasPermission = await ref.read(locationProvider.notifier).checkLocationPermission();
                     if (!hasPermission) {
-                      final granted = await ref.read(locationProvider.notifier).requestLocationPermission();
-                      if (granted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Location permission granted'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Location permission denied'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Location permission already granted'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                      await ref.read(locationProvider.notifier).requestLocationPermission();
                     }
+                    
+                    // Connect to socket and join room
+                    await ref.read(locationProvider.notifier).joinLocationRoom(roomType: 'driver');
+                    
+                    // Start tracking and emit location
+                    await ref.read(locationProvider.notifier).startLocationTracking();
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Location tracking started with socket connection'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Check/Request Location Permission'),
+                  child: const Text(
+                    'Start Location Tracking & Socket',
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ),
                 const SizedBox(height: 12),
-          
-                // Get Current Location Button
-                ElevatedButton(
-                  onPressed: () {
-                    ref.read(locationProvider.notifier).getCurrentLocation();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Get Current Location'),
-                ),
-                const SizedBox(height: 12),
-          
-                // Start/Stop Tracking Buttons
+                
+                // Stop button
                 locationState.when(
                   data: (state) => state.isTracking
                       ? ElevatedButton(
@@ -206,67 +192,40 @@ class _LocationTrackingScreenState extends ConsumerState<LocationTrackingScreen>
                           ),
                           child: const Text('Stop Location Tracking'),
                         )
-                      : ElevatedButton(
-                          onPressed: () {
-                            ref.read(locationProvider.notifier).startLocationTracking();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Start Location Tracking'),
-                        ),
-                  loading: () => const ElevatedButton(
-                    onPressed: null,
-                    child: Text('Loading...'),
-                  ),
-                  error: (_, __) => ElevatedButton(
-                    onPressed: () {
-                      ref.read(locationProvider.notifier).startLocationTracking();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Retry Location Tracking'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-          
-                // Join Location Room Button
-                ElevatedButton(
-                  onPressed: () {
-                    ref.read(locationProvider.notifier).joinLocationRoom(roomType: 'driver');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Join Location Room (Driver)'),
-                ),
-                const SizedBox(height: 12),
-          
-                // Manual Location Emit Button
-                ElevatedButton(
-                  onPressed: () {
-                    // Example coordinates (you can replace with actual current location)
-                    ref.read(locationProvider.notifier).emitLocationUpdate(40.7128, -74.0060);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Manual location update sent'),
-                        backgroundColor: Colors.blue,
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Send Test Location Update'),
+                      : const SizedBox.shrink(),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
                 ),
               ],
           
               const SizedBox(height: 24),
+              
+              // Test Live Location Request Button
+              locationState.when(
+                data: (state) => state.isConnected
+                    ? ElevatedButton(
+                        onPressed: () {
+                          // Test with a sample user ID - replace with actual user ID in production
+                          ref.read(locationProvider.notifier).requestLiveLocation('test_user_id');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Live location request sent'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Test Live Location Request'),
+                      )
+                    : const SizedBox.shrink(),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+          
+              const SizedBox(height: 16),
           
               // Clear Error Button
               locationState.when(

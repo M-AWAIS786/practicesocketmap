@@ -20,23 +20,36 @@ class SocketApiServices {
     try {
       log('Connecting to Socket.IO: $url');
       final socket = IO.io(url, <String, dynamic>{
-        'transports': ['websocket'],
+        'transports': ['websocket', 'polling'], // Add polling like HTML
         'autoConnect': false,
-        if (token != null) 'auth': {'token': token}, // Support auth.token
-        if (token != null) 'extraHeaders': {'Authorization': 'Bearer $token'}, // Support Bearer header
+        'timeout': 20000, // 20 second timeout like HTML
+        'forceNew': true, // Force new connection like HTML
+        if (token != null) 'auth': {'token': token}, // Primary auth method like HTML
+        if (token != null) 'extraHeaders': {'Authorization': 'Bearer $token'}, // Fallback auth
       });
 
       final completer = Completer<void>();
       socket.onConnect((_) {
-        log('Connected to Socket.IO: $url');
+        log('✅ Connected to Socket.IO: $url');
+        print('🚀 Socket connection established to: $url');
         if (!completer.isCompleted) completer.complete();
       });
 
       socket.onConnectError((error) {
-        log('Connection error: $url, $error');
+        log('❌ Connection error: $url, $error');
         if (!completer.isCompleted) {
           completer.completeError(FetchDataException('Connection failed: $error'));
         }
+      });
+
+      // Add authentication listener like HTML
+      socket.on('authenticated', (data) {
+        log('🔐 Authenticated as: ${data['user']['email']} (${data['user']['role']})');
+      });
+
+      // Add disconnect listener like HTML
+      socket.onDisconnect((reason) {
+        log('❌ Disconnected from $url: $reason');
       });
 
       socket.connect();
@@ -88,9 +101,77 @@ class SocketApiServices {
       throw FetchDataException('Socket not initialized: $url');
     }
     _sockets[url]!.on(event, (data) {
-      log('Received $event on $url: $data');
+      log('📡 Received $event on $url: $data');
       callback(data);
     });
+  }
+
+  // Listen for location update confirmations and errors
+  void listenForLocationConfirmations(String url) {
+    if (!_sockets.containsKey(url)) return;
+    
+    final socket = _sockets[url]!;
+    
+    // Listen for location update confirmations
+    socket.on('location_updated', (data) {
+      log('📍 Location update confirmed: $data');
+    });
+    
+    // Listen for location update errors
+    socket.on('location_error', (data) {
+      log('❌ Location update error: $data');
+    });
+  }
+  
+  // Listen for live location events
+  void listenForLiveLocationEvents(String url, Function(dynamic) onLiveLocationResponse, Function(dynamic) onLiveLocationError) {
+    if (!_sockets.containsKey(url)) return;
+    
+    final socket = _sockets[url]!;
+    
+    // Listen for live location requests
+    socket.on('get_live_location', (data) {
+      log('📍 Live location requested: $data');
+      // This event is typically sent by the server to request current location
+      // The client should respond with current location
+    });
+    
+    // Listen for live location responses
+    socket.on('live_location_response', (data) {
+      log('📍 Live location response received: $data');
+      onLiveLocationResponse(data);
+    });
+    
+    // Listen for live location errors
+    socket.on('live_location_error', (data) {
+      log('❌ Live location error: $data');
+      onLiveLocationError(data);
+    });
+  }
+  
+  // Emit live location request
+  void requestLiveLocation(String url, String targetUserId) {
+    if (!_sockets.containsKey(url)) return;
+    
+    final socket = _sockets[url]!;
+    socket.emit('get_live_location', {
+      'targetUserId': targetUserId,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    log('📍 Live location requested for user: $targetUserId');
+  }
+  
+  // Respond to live location request
+  void respondToLiveLocationRequest(String url, double latitude, double longitude, String requesterId) {
+    if (!_sockets.containsKey(url)) return;
+    
+    final socket = _sockets[url]!;
+    socket.emit('live_location_response', {
+      'coordinates': [longitude, latitude], // Server expects [longitude, latitude] format
+      'requesterId': requesterId,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    log('📍 Live location response sent to: $requesterId');
   }
 
   void disconnect(String url) {
