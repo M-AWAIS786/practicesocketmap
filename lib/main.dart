@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:practicesocketmap/screens/practiceScreen.dart';
 import 'package:location/location.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'services/ride_booking_service.dart';
 import 'services/driver_auth_service.dart';
-import 'widgets/fare_estimation_widget.dart';
-import 'widgets/booking_widget.dart';
-import 'screens/driver_map_screen.dart';
 import 'screens/driver_login_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(ProviderScope(child: const MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -57,7 +54,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const DriverMapScreen(),
+              builder: (context) => const PracticeScreen(),
             ),
           );
           return;
@@ -98,7 +95,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   LocationData? _currentLocation;
   Location _location = Location();
   Set<Marker> _markers = {};
-  late RideBookingService _bookingService;
   late TabController _tabController;
   
   List<String> _connectionMessages = [];
@@ -112,23 +108,17 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _bookingService = RideBookingService();
+    _tabController = TabController(length: 3, vsync: this);
+   
     _requestLocationPermission();
-    _setupBookingServiceListeners();
+
   }
   
-  void _setupBookingServiceListeners() {
-    _bookingService.connectionStatusStream.listen((status) {
-      setState(() {
-        _connectionMessages.add(status);
-      });
-    });
-  }
+
 
   @override
   void dispose() {
-    _bookingService.dispose();
+ 
     _tabController.dispose();
     super.dispose();
   }
@@ -168,13 +158,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
 
 
-  void _connectSocket() {
-    _bookingService.connect();
-  }
 
-  void _disconnectSocket() {
-    _bookingService.disconnect();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -198,32 +182,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
           // Map and Socket Tab
           Column(
             children: [
-              // Socket Status Panel
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: _bookingService.isConnected ? Colors.green[100] : Colors.red[100],
-                child: Row(
-                  children: [
-                    Icon(
-                      _bookingService.isConnected ? Icons.wifi : Icons.wifi_off,
-                      color: _bookingService.isConnected ? Colors.green : Colors.red,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _bookingService.isConnected ? 'Connected' : 'Disconnected',
-                      style: TextStyle(
-                        color: _bookingService.isConnected ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: _bookingService.isConnected ? _disconnectSocket : _connectSocket,
-                      child: Text(_bookingService.isConnected ? 'Disconnect' : 'Connect'),
-                    ),
-                  ],
-                ),
-              ),
+          
               // User Info Panel
               Container(
                 padding: const EdgeInsets.all(16),
@@ -298,16 +257,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
               ),
             ],
           ),
-          // Fare Estimation Tab
-          SingleChildScrollView(
-            child: FareEstimationWidget(bookingService: _bookingService),
-          ),
-          // Booking Test Tab
-          SingleChildScrollView(
-            child: BookingWidget(bookingService: _bookingService),
-          ),
-          // Driver Map Tab
-          const DriverMapScreen(),
+     
         ],
       ),
       floatingActionButton: FloatingActionButton(

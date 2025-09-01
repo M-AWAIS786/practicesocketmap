@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:practicesocketmap/screens/practiceScreen.dart';
 import '../services/driver_auth_service.dart';
 import 'driver_map_screen.dart';
 
@@ -36,7 +37,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const DriverMapScreen(),
+              builder: (context) => const PracticeScreen(),
             ),
           );
         }
@@ -63,7 +64,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const DriverMapScreen(),
+              builder: (context) => const PracticeScreen(),
             ),
           );
         }
