@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:practicesocketmap/provider/socket_connect_provider.dart';
 import 'package:practicesocketmap/screens/bookingScreen.dart';
 import 'package:practicesocketmap/screens/location_tracking_screen.dart';
+import 'package:practicesocketmap/screens/drivers_map_screen.dart';
 
 
 class PracticeScreen extends ConsumerWidget {
@@ -10,7 +11,7 @@ class PracticeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final socketState = ref.watch(socketProvider);
+    final socketState = ref.watch(socketConnectProvider);
       final authService = ref.read(driverAuthServiceProvider);
     return Scaffold(
       appBar: AppBar(
@@ -40,7 +41,7 @@ class PracticeScreen extends ConsumerWidget {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  ref.read(socketProvider.notifier).connectAndJoinUserRoom();
+                  ref.read(socketConnectProvider.notifier).connectAndJoinUserRoom();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue[600],
@@ -60,7 +61,7 @@ class PracticeScreen extends ConsumerWidget {
             Text("niche bdriver ko socket connect kra gye"),
             TextButton(
             onPressed: (){
-               ref.read(socketProvider.notifier).connectAndJoinDriverRoom();
+               ref.read(socketConnectProvider.notifier).connectAndJoinDriverRoom();
             },
             child: Text("Driver Lora Connect Socket"),
              ),
@@ -85,6 +86,24 @@ class PracticeScreen extends ConsumerWidget {
               );
             },
             child: const Text("Location Tracking"),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DriversMapScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.location_on),
+            label: const Text('Drivers Map'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
           )
           ],
         ),
