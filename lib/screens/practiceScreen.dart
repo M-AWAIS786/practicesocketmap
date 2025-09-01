@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:practicesocketmap/provider/socket_connect_provider.dart';
 import 'package:practicesocketmap/screens/bookingScreen.dart';
+import 'package:practicesocketmap/screens/location_tracking_screen.dart';
 
 
 class PracticeScreen extends ConsumerWidget {
@@ -72,7 +73,19 @@ class PracticeScreen extends ConsumerWidget {
               userName:"awais" ,
               userToken:authService.token  ?? '',
             ),));
-          }, child: Text("user booking lora"))
+          }, child: Text("user booking lora")),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LocationTrackingScreen(),
+                ),
+              );
+            },
+            child: const Text("Location Tracking"),
+          )
           ],
         ),
       ),
