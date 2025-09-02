@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:practicesocketmap/screens/practiceScreen.dart';
 import '../services/driver_auth_service.dart';
-import 'driver_map_screen.dart';
 
 class DriverLoginScreen extends StatefulWidget {
   const DriverLoginScreen({super.key});
